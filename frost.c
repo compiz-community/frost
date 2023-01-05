@@ -20,7 +20,7 @@
  * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
  * WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  *
- * Author: David Reveman <davidr@novell.com>
+ * Author: eignar samaniego <eignar17@gmail.com>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -40,14 +40,14 @@
 
 #define TEXTURE_NUM 3
 
-typedef struct _WaterFunction {
-    struct _WaterFunction *next;
+typedef struct _frostFunction {
+    struct _frostFunction *next;
 
     int handle;
     int target;
     int param;
     int unit;
-} WaterFunction;
+} frostFunction;
 
 #define TINDEX(ws, i) (((ws)->tIndex + (i)) % TEXTURE_NUM)
 
@@ -57,36 +57,36 @@ typedef struct _WaterFunction {
     else if ((v) < (min))  \
 	(v) = (min)
 
-#define WATER_INITIATE_MODIFIERS_DEFAULT (ControlMask | CompSuperMask)
+#define FROST_INITIATE_MODIFIERS_DEFAULT (ControlMask | CompSuperMask)
 
-static CompMetadata waterMetadata;
+static CompMetadata frostMetadata;
 
 static int displayPrivateIndex;
 
-static int waterLastPointerX = 0;
-static int waterLastPointerY = 0;
+static int frostLastPointerX = 0;
+static int frostLastPointerY = 0;
 
-#define WATER_DISPLAY_OPTION_INITIATE_KEY     0
-#define WATER_DISPLAY_OPTION_TOGGLE_RAIN_KEY  1
-#define WATER_DISPLAY_OPTION_TOGGLE_WIPER_KEY 2
-#define WATER_DISPLAY_OPTION_OFFSET_SCALE     3
-#define WATER_DISPLAY_OPTION_RAIN_DELAY	      4
-#define WATER_DISPLAY_OPTION_TITLE_WAVE       5
-#define WATER_DISPLAY_OPTION_POINT            6
-#define WATER_DISPLAY_OPTION_LINE             7
-#define WATER_DISPLAY_OPTION_NUM              8
+#define FROST_DISPLAY_OPTION_INITIATE_KEY     0
+#define FROST_DISPLAY_OPTION_TOGGLE_RAIN_KEY  1
+#define FROST_DISPLAY_OPTION_TOGGLE_WIPER_KEY 2
+#define FROST_DISPLAY_OPTION_OFFSET_SCALE     3
+#define FROST_DISPLAY_OPTION_RAIN_DELAY	      4
+#define FROST_DISPLAY_OPTION_TITLE_WAVE       5
+#define FROST_DISPLAY_OPTION_POINT            6
+#define FROST_DISPLAY_OPTION_LINE             7
+#define FROST_DISPLAY_OPTION_NUM              8
 
-typedef struct _WaterDisplay {
+typedef struct _frostDisplay {
     int		    screenPrivateIndex;
 
-    CompOption opt[WATER_DISPLAY_OPTION_NUM];
+    CompOption opt[FROST_DISPLAY_OPTION_NUM];
 
     HandleEventProc handleEvent;
 
     float offsetScale;
-} WaterDisplay;
+} frostDisplay;
 
-typedef struct _WaterScreen {
+typedef struct _frostScreen {
     PreparePaintScreenProc preparePaintScreen;
     DonePaintScreenProc    donePaintScreen;
     DrawWindowTextureProc  drawWindowTexture;
@@ -117,30 +117,30 @@ typedef struct _WaterScreen {
     float wiperAngle;
     float wiperSpeed;
 
-    WaterFunction *bumpMapFunctions;
-} WaterScreen;
+    frostFunction *bumpMapFunctions;
+} frostScreen;
 
-#define GET_WATER_DISPLAY(d)					   \
-    ((WaterDisplay *) (d)->base.privates[displayPrivateIndex].ptr)
+#define GET_FROST_DISPLAY(d)					   \
+    ((frostDisplay *) (d)->base.privates[displayPrivateIndex].ptr)
 
-#define WATER_DISPLAY(d)		     \
-    WaterDisplay *wd = GET_WATER_DISPLAY (d)
+#define FROST_DISPLAY(d)		     \
+    frostDisplay *wd = GET_FROST_DISPLAY (d)
 
-#define GET_WATER_SCREEN(s, wd)					       \
-    ((WaterScreen *) (s)->base.privates[(wd)->screenPrivateIndex].ptr)
+#define GET_FROST_SCREEN(s, wd)					       \
+    ((frostScreen *) (s)->base.privates[(wd)->screenPrivateIndex].ptr)
 
-#define WATER_SCREEN(s)							   \
-    WaterScreen *ws = GET_WATER_SCREEN (s, GET_WATER_DISPLAY (s->display))
+#define FROST_SCREEN(s)							   \
+    frostScreen *ws = GET_FROST_SCREEN (s, GET_FROST_DISPLAY (s->display))
 
 #define NUM_OPTIONS(s) (sizeof ((s)->opt) / sizeof (CompOption))
 
 static Bool
-waterRainTimeout (void *closure);
+frostRainTimeout (void *closure);
 
 static Bool
-waterWiperTimeout (void *closure);
+frostWiperTimeout (void *closure);
 
-static const char *waterFpString =
+static const char *frostFpString =
     "!!ARBfp1.0"
 
     "PARAM param = program.local[0];"
@@ -221,7 +221,7 @@ loadFragmentProgram (CompScreen *s,
     glGetIntegerv (GL_PROGRAM_ERROR_POSITION_ARB, &errorPos);
     if (glGetError () != GL_NO_ERROR || errorPos != -1)
     {
-	compLogMessage ("water", CompLogLevelError,
+	compLogMessage ("frost", CompLogLevelError,
 			"failed to load bump map program");
 
 	(*s->deletePrograms) (1, program);
@@ -234,20 +234,20 @@ loadFragmentProgram (CompScreen *s,
 }
 
 static int
-loadWaterProgram (CompScreen *s)
+loadfrostProgram (CompScreen *s)
 {
     char buffer[1024];
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->target == GL_TEXTURE_2D)
-	sprintf (buffer, waterFpString,
+	sprintf (buffer, frostFpString,
 		 "2D", "2D",
 		 1.0f / ws->width,  1.0f / ws->width,
 		 1.0f / ws->height, 1.0f / ws->height,
 		 "2D", "2D", "2D", "2D");
     else
-	sprintf (buffer, waterFpString,
+	sprintf (buffer, frostFpString,
 		 "RECT", "RECT",
 		 1.0f, 1.0f, 1.0f, 1.0f,
 		 "RECT", "RECT", "RECT", "RECT");
@@ -261,11 +261,11 @@ getBumpMapFragmentFunction (CompScreen  *s,
 			    int		unit,
 			    int		param)
 {
-    WaterFunction    *function;
+    frostFunction    *function;
     CompFunctionData *data;
     int		     target;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (texture->target == GL_TEXTURE_2D)
 	target = COMP_FETCH_TARGET_2D;
@@ -364,10 +364,10 @@ getBumpMapFragmentFunction (CompScreen  *s,
 	    return 0;
 	}
 
-	function = malloc (sizeof (WaterFunction));
+	function = malloc (sizeof (frostFunction));
 	if (function)
 	{
-	    handle = createFragmentFunction (s, "water", data);
+	    handle = createFragmentFunction (s, "frost", data);
 
 	    function->handle = handle;
 	    function->target = target;
@@ -390,7 +390,7 @@ static void
 allocTexture (CompScreen *s,
 	      int	 index)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     glGenTextures (1, &ws->texture[index]);
     glBindTexture (ws->target, ws->texture[index]);
@@ -423,7 +423,7 @@ static int
 fboPrologue (CompScreen *s,
 	     int	tIndex)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (!ws->fbo)
 	return 0;
@@ -447,7 +447,7 @@ fboPrologue (CompScreen *s,
 	ws->fboStatus = (*s->checkFramebufferStatus) (GL_FRAMEBUFFER_EXT);
 	if (ws->fboStatus != GL_FRAMEBUFFER_COMPLETE_EXT)
 	{
-	    compLogMessage ("water", CompLogLevelError,
+	    compLogMessage ("frost", CompLogLevelError,
 			    "framebuffer incomplete");
 
 	    (*s->bindFramebuffer) (GL_FRAMEBUFFER_EXT, 0);
@@ -505,7 +505,7 @@ fboUpdate (CompScreen *s,
 	   float      dt,
 	   float      fade)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (!fboPrologue (s, TINDEX (ws, 1)))
 	return 0;
@@ -574,7 +574,7 @@ fboVertices (CompScreen *s,
 	     int	n,
 	     float	v)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (!fboPrologue (s, TINDEX (ws, 0)))
 	return 0;
@@ -619,7 +619,7 @@ softwareUpdate (CompScreen *s,
     int		  dWidth, dHeight;
     float	  *d01, *d10, *d11, *d12;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (!ws->texture[TINDEX (ws, 0)])
 	allocTexture (s, TINDEX (ws, 0));
@@ -750,7 +750,7 @@ softwarePoints (CompScreen *s,
 		int	   n,
 		float	   add)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     while (n--)
     {
@@ -785,7 +785,7 @@ softwareLines (CompScreen *s,
     int  yStep;
     int  x, y;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
 #define SWAP(v0, v1) \
     tmp = v0;	     \
@@ -871,12 +871,12 @@ softwareVertices (CompScreen *s,
 }
 
 static void
-waterUpdate (CompScreen *s,
+frostUpdate (CompScreen *s,
 	     float	dt)
 {
     GLfloat fade = 1.0f;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->count < 1000)
     {
@@ -895,7 +895,7 @@ scaleVertices (CompScreen *s,
 	       XPoint	  *p,
 	       int	  n)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     while (n--)
     {
@@ -905,13 +905,13 @@ scaleVertices (CompScreen *s,
 }
 
 static void
-waterVertices (CompScreen *s,
+frostVertices (CompScreen *s,
 	       GLenum     type,
 	       XPoint     *p,
 	       int	  n,
 	       float	  v)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (!s->fragmentProgram)
 	return;
@@ -926,7 +926,7 @@ waterVertices (CompScreen *s,
 }
 
 static Bool
-waterRainTimeout (void *closure)
+frostRainTimeout (void *closure)
 {
     CompScreen *s = closure;
     XPoint     p;
@@ -934,7 +934,7 @@ waterRainTimeout (void *closure)
     p.x = (int) (s->width  * (rand () / (float) RAND_MAX));
     p.y = (int) (s->height * (rand () / (float) RAND_MAX));
 
-    waterVertices (s, GL_POINTS, &p, 1, 0.8f * (rand () / (float) RAND_MAX));
+    frostVertices (s, GL_POINTS, &p, 1, 0.8f * (rand () / (float) RAND_MAX));
 
     damageScreen (s);
 
@@ -942,11 +942,11 @@ waterRainTimeout (void *closure)
 }
 
 static Bool
-waterWiperTimeout (void *closure)
+frostWiperTimeout (void *closure)
 {
     CompScreen *s = closure;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->count)
     {
@@ -960,11 +960,11 @@ waterWiperTimeout (void *closure)
 }
 
 static void
-waterReset (CompScreen *s)
+frostReset (CompScreen *s)
 {
     int size, i, j;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     ws->height = TEXTURE_SIZE;
     ws->width  = (ws->height * s->width) / s->height;
@@ -987,7 +987,7 @@ waterReset (CompScreen *s)
 
     if (s->fbo)
     {
-	loadWaterProgram (s);
+	loadfrostProgram (s);
 	if (!ws->fbo)
 	    (*s->genFramebuffers) (1, &ws->fbo);
     }
@@ -1027,12 +1027,12 @@ waterReset (CompScreen *s)
 }
 
 static void
-waterDrawWindowTexture (CompWindow	     *w,
+frostDrawWindowTexture (CompWindow	     *w,
 			CompTexture	     *texture,
 			const FragmentAttrib *attrib,
 			unsigned int	     mask)
 {
-    WATER_SCREEN (w->screen);
+    FROST_SCREEN (w->screen);
 
     if (ws->count)
     {
@@ -1041,7 +1041,7 @@ waterDrawWindowTexture (CompWindow	     *w,
 	int	       param, function, unit;
 	GLfloat	       plane[4];
 
-	WATER_DISPLAY (w->screen->display);
+	FROST_DISPLAY (w->screen->display);
 
 	param = allocFragmentParameters (&fa, 1);
 	unit  = allocFragmentTextureUnits (&fa, 1);
@@ -1088,7 +1088,7 @@ waterDrawWindowTexture (CompWindow	     *w,
 
 	UNWRAP (ws, w->screen, drawWindowTexture);
 	(*w->screen->drawWindowTexture) (w, texture, &fa, mask);
-	WRAP (ws, w->screen, drawWindowTexture, waterDrawWindowTexture);
+	WRAP (ws, w->screen, drawWindowTexture, frostDrawWindowTexture);
 
 	if (function)
 	{
@@ -1105,16 +1105,16 @@ waterDrawWindowTexture (CompWindow	     *w,
     {
 	UNWRAP (ws, w->screen, drawWindowTexture);
 	(*w->screen->drawWindowTexture) (w, texture, attrib, mask);
-	WRAP (ws, w->screen, drawWindowTexture, waterDrawWindowTexture);
+	WRAP (ws, w->screen, drawWindowTexture, frostDrawWindowTexture);
     }
 }
 
 /* TODO: a way to control the speed */
 static void
-waterPreparePaintScreen (CompScreen *s,
+frostPreparePaintScreen (CompScreen *s,
 			 int	    msSinceLastPaint)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->count)
     {
@@ -1190,36 +1190,36 @@ waterPreparePaintScreen (CompScreen *s,
 
 		/* software rasterizer doesn't support triangles yet so wiper
 		   effect will only work with FBOs right now */
-		waterVertices (s, GL_TRIANGLES, p, 3, 0.0f);
+		frostVertices (s, GL_TRIANGLES, p, 3, 0.0f);
 	    }
 
 #undef TAN
 
 	}
 
-	waterUpdate (s, 0.8f);
+	frostUpdate (s, 0.8f);
     }
 
     UNWRAP (ws, s, preparePaintScreen);
     (*s->preparePaintScreen) (s, msSinceLastPaint);
-    WRAP (ws, s, preparePaintScreen, waterPreparePaintScreen);
+    WRAP (ws, s, preparePaintScreen, frostPreparePaintScreen);
 }
 
 static void
-waterDonePaintScreen (CompScreen *s)
+frostDonePaintScreen (CompScreen *s)
 {
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->count)
 	damageScreen (s);
 
     UNWRAP (ws, s, donePaintScreen);
     (*s->donePaintScreen) (s);
-    WRAP (ws, s, donePaintScreen, waterDonePaintScreen);
+    WRAP (ws, s, donePaintScreen, frostDonePaintScreen);
 }
 
 static void
-waterHandleMotionEvent (CompDisplay *d,
+frostHandleMotionEvent (CompDisplay *d,
 			Window	    root)
 {
     CompScreen *s;
@@ -1227,19 +1227,19 @@ waterHandleMotionEvent (CompDisplay *d,
     s = findScreenAtDisplay (d, root);
     if (s)
     {
-	WATER_SCREEN (s);
+	FROST_SCREEN (s);
 
 	if (ws->grabIndex)
 	{
 	    XPoint p[2];
 
-	    p[0].x = waterLastPointerX;
-	    p[0].y = waterLastPointerY;
+	    p[0].x = frostLastPointerX;
+	    p[0].y = frostLastPointerY;
 
-	    p[1].x = waterLastPointerX = pointerX;
-	    p[1].y = waterLastPointerY = pointerY;
+	    p[1].x = frostLastPointerX = pointerX;
+	    p[1].y = frostLastPointerY = pointerY;
 
-	    waterVertices (s, GL_LINES, p, 2, 0.2f);
+	    frostVertices (s, GL_LINES, p, 2, 0.2f);
 
 	    damageScreen (s);
 	}
@@ -1247,7 +1247,7 @@ waterHandleMotionEvent (CompDisplay *d,
 }
 
 static Bool
-waterInitiate (CompDisplay     *d,
+frostInitiate (CompDisplay     *d,
 	       CompAction      *action,
 	       CompActionState state,
 	       CompOption      *option,
@@ -1260,23 +1260,23 @@ waterInitiate (CompDisplay     *d,
 
     for (s = d->screens; s; s = s->next)
     {
-	WATER_SCREEN (s);
+	FROST_SCREEN (s);
 
-	if (otherScreenGrabExist (s, "water", NULL))
+	if (otherScreenGrabExist (s, "frost", NULL))
 	    continue;
 
 	if (!ws->grabIndex)
-	    ws->grabIndex = pushScreenGrab (s, None, "water");
+	    ws->grabIndex = pushScreenGrab (s, None, "frost");
 
 	if (XQueryPointer (d->display, s->root, &root, &child, &xRoot, &yRoot,
 			   &i, &i, &ui))
 	{
 	    XPoint p;
 
-	    p.x = waterLastPointerX = xRoot;
-	    p.y = waterLastPointerY = yRoot;
+	    p.x = frostLastPointerX = xRoot;
+	    p.y = frostLastPointerY = yRoot;
 
-	    waterVertices (s, GL_POINTS, &p, 1, 0.8f);
+	    frostVertices (s, GL_POINTS, &p, 1, 0.8f);
 
 	    damageScreen (s);
 	}
@@ -1292,7 +1292,7 @@ waterInitiate (CompDisplay     *d,
 }
 
 static Bool
-waterTerminate (CompDisplay	*d,
+frostTerminate (CompDisplay	*d,
 		CompAction	*action,
 		CompActionState state,
 		CompOption	*option,
@@ -1302,7 +1302,7 @@ waterTerminate (CompDisplay	*d,
 
     for (s = d->screens; s; s = s->next)
     {
-	WATER_SCREEN (s);
+	FROST_SCREEN (s);
 
 	if (ws->grabIndex)
 	{
@@ -1315,7 +1315,7 @@ waterTerminate (CompDisplay	*d,
 }
 
 static Bool
-waterToggleRain (CompDisplay     *d,
+frostToggleRain (CompDisplay     *d,
 		 CompAction      *action,
 		 CompActionState state,
 		 CompOption      *option,
@@ -1323,20 +1323,20 @@ waterToggleRain (CompDisplay     *d,
 {
     CompScreen *s;
 
-    WATER_DISPLAY (d);
+    FROST_DISPLAY (d);
 
     s = findScreenAtDisplay (d, getIntOptionNamed (option, nOption, "root", 0));
     if (s)
     {
-	WATER_SCREEN (s);
+	FROST_SCREEN (s);
 
 	if (!ws->rainHandle)
 	{
 	    int delay;
 
-	    delay = wd->opt[WATER_DISPLAY_OPTION_RAIN_DELAY].value.i;
+	    delay = wd->opt[FROST_DISPLAY_OPTION_RAIN_DELAY].value.i;
 	    ws->rainHandle = compAddTimeout (delay, (float) delay * 1.2,
-					     waterRainTimeout, s);
+					     frostRainTimeout, s);
 	}
 	else
 	{
@@ -1349,7 +1349,7 @@ waterToggleRain (CompDisplay     *d,
 }
 
 static Bool
-waterToggleWiper (CompDisplay     *d,
+frostToggleWiper (CompDisplay     *d,
 		  CompAction      *action,
 		  CompActionState state,
 		  CompOption      *option,
@@ -1360,11 +1360,11 @@ waterToggleWiper (CompDisplay     *d,
     s = findScreenAtDisplay (d, getIntOptionNamed (option, nOption, "root", 0));
     if (s)
     {
-	WATER_SCREEN (s);
+	FROST_SCREEN (s);
 
 	if (!ws->wiperHandle)
 	{
-	    ws->wiperHandle = compAddTimeout (2000, 2400, waterWiperTimeout, s);
+	    ws->wiperHandle = compAddTimeout (2000, 2400, frostWiperTimeout, s);
 	}
 	else
 	{
@@ -1377,7 +1377,7 @@ waterToggleWiper (CompDisplay     *d,
 }
 
 static Bool
-waterTitleWave (CompDisplay     *d,
+frostTitleWave (CompDisplay     *d,
 		CompAction      *action,
 		CompActionState state,
 		CompOption      *option,
@@ -1399,7 +1399,7 @@ waterTitleWave (CompDisplay     *d,
 	p[1].x = w->attrib.x + w->width + w->input.right;
 	p[1].y = p[0].y;
 
-	waterVertices (w->screen, GL_LINES, p, 2, 0.15f);
+	frostVertices (w->screen, GL_LINES, p, 2, 0.15f);
 
 	damageScreen (w->screen);
     }
@@ -1408,7 +1408,7 @@ waterTitleWave (CompDisplay     *d,
 }
 
 static Bool
-waterPoint (CompDisplay     *d,
+frostPoint (CompDisplay     *d,
 	    CompAction      *action,
 	    CompActionState state,
 	    CompOption      *option,
@@ -1430,7 +1430,7 @@ waterPoint (CompDisplay     *d,
 
 	amp = getFloatOptionNamed (option, nOption, "amplitude", 0.5f);
 
-	waterVertices (s, GL_POINTS, &p, 1, amp);
+	frostVertices (s, GL_POINTS, &p, 1, amp);
 
 	damageScreen (s);
     }
@@ -1439,7 +1439,7 @@ waterPoint (CompDisplay     *d,
 }
 
 static Bool
-waterLine (CompDisplay     *d,
+frostLine (CompDisplay     *d,
 	   CompAction      *action,
 	   CompActionState state,
 	   CompOption      *option,
@@ -1466,7 +1466,7 @@ waterLine (CompDisplay     *d,
 
 	amp = getFloatOptionNamed (option, nOption, "amplitude", 0.25f);
 
-	waterVertices (s, GL_LINES, p, 2, amp);
+	frostVertices (s, GL_LINES, p, 2, amp);
 
 	damageScreen (s);
     }
@@ -1475,19 +1475,19 @@ waterLine (CompDisplay     *d,
 }
 
 static void
-waterHandleEvent (CompDisplay *d,
+frostHandleEvent (CompDisplay *d,
 		  XEvent      *event)
 {
     CompScreen *s;
 
-    WATER_DISPLAY (d);
+    FROST_DISPLAY (d);
 
     switch (event->type) {
     case ButtonPress:
 	s = findScreenAtDisplay (d, event->xbutton.root);
 	if (s)
 	{
-	    WATER_SCREEN (s);
+	    FROST_SCREEN (s);
 
 	    if (ws->grabIndex)
 	    {
@@ -1496,39 +1496,39 @@ waterHandleEvent (CompDisplay *d,
 		p.x = pointerX;
 		p.y = pointerY;
 
-		waterVertices (s, GL_POINTS, &p, 1, 0.8f);
+		frostVertices (s, GL_POINTS, &p, 1, 0.8f);
 		damageScreen (s);
 	    }
 	}
 	break;
     case EnterNotify:
     case LeaveNotify:
-	waterHandleMotionEvent (d, event->xcrossing.root);
+	frostHandleMotionEvent (d, event->xcrossing.root);
 	break;
     case MotionNotify:
-	waterHandleMotionEvent (d, event->xmotion.root);
+	frostHandleMotionEvent (d, event->xmotion.root);
     default:
 	break;
     }
 
     UNWRAP (wd, d, handleEvent);
     (*d->handleEvent) (d, event);
-    WRAP (wd, d, handleEvent, waterHandleEvent);
+    WRAP (wd, d, handleEvent, frostHandleEvent);
 }
 
 static CompOption *
-waterGetDisplayOptions (CompPlugin  *plugin,
+frostGetDisplayOptions (CompPlugin  *plugin,
 			CompDisplay *display,
 			int	    *count)
 {
-    WATER_DISPLAY (display);
+    FROST_DISPLAY (display);
 
     *count = NUM_OPTIONS (wd);
     return wd->opt;
 }
 
 static Bool
-waterSetDisplayOption (CompPlugin      *plugin,
+frostSetDisplayOption (CompPlugin      *plugin,
 		       CompDisplay     *display,
 		       const char      *name,
 		       CompOptionValue *value)
@@ -1536,28 +1536,28 @@ waterSetDisplayOption (CompPlugin      *plugin,
     CompOption *o;
     int	       index;
 
-    WATER_DISPLAY (display);
+    FROST_DISPLAY (display);
 
     o = compFindOption (wd->opt, NUM_OPTIONS (wd), name, &index);
     if (!o)
 	return FALSE;
 
     switch (index) {
-    case WATER_DISPLAY_OPTION_OFFSET_SCALE:
+    case FROST_DISPLAY_OPTION_OFFSET_SCALE:
 	if (compSetFloatOption (o, value))
 	{
 	    wd->offsetScale = o->value.f * 50.0f;
 	    return TRUE;
 	}
 	break;
-    case WATER_DISPLAY_OPTION_RAIN_DELAY:
+    case FROST_DISPLAY_OPTION_RAIN_DELAY:
 	if (compSetIntOption (o, value))
 	{
 	    CompScreen *s;
 
 	    for (s = display->screens; s; s = s->next)
 	    {
-		WATER_SCREEN (s);
+		FROST_SCREEN (s);
 
 		if (!ws->rainHandle)
 		    continue;
@@ -1565,7 +1565,7 @@ waterSetDisplayOption (CompPlugin      *plugin,
 		compRemoveTimeout (ws->rainHandle);
 		ws->rainHandle = compAddTimeout (value->i,
 						 (float)value->i * 1.2,
-						 waterRainTimeout, s);
+						 frostRainTimeout, s);
 	    }
 	    return TRUE;
 	}
@@ -1577,35 +1577,35 @@ waterSetDisplayOption (CompPlugin      *plugin,
     return FALSE;
 }
 
-static const CompMetadataOptionInfo waterDisplayOptionInfo[] = {
-    { "initiate_key", "key", 0, waterInitiate, waterTerminate },
-    { "toggle_rain_key", "key", 0, waterToggleRain, 0 },
-    { "toggle_wiper_key", "key", 0, waterToggleWiper, 0 },
+static const CompMetadataOptionInfo frostDisplayOptionInfo[] = {
+    { "initiate_key", "key", 0, frostInitiate, frostTerminate },
+    { "toggle_rain_key", "key", 0, frostToggleRain, 0 },
+    { "toggle_wiper_key", "key", 0, frostToggleWiper, 0 },
     { "offset_scale", "float", "<min>0</min>", 0, 0 },
     { "rain_delay", "int", "<min>1</min>", 0, 0 },
-    { "title_wave", "bell", 0, waterTitleWave, 0 },
-    { "point", "action", 0, waterPoint, 0 },
-    { "line", "action", 0, waterLine, 0 }
+    { "title_wave", "bell", 0, frostTitleWave, 0 },
+    { "point", "action", 0, frostPoint, 0 },
+    { "line", "action", 0, frostLine, 0 }
 };
 
 static Bool
-waterInitDisplay (CompPlugin  *p,
+frostInitDisplay (CompPlugin  *p,
 		  CompDisplay *d)
 {
-    WaterDisplay *wd;
+    frostDisplay *wd;
 
     if (!checkPluginABI ("core", CORE_ABIVERSION))
 	return FALSE;
 
-    wd = malloc (sizeof (WaterDisplay));
+    wd = malloc (sizeof (frostDisplay));
     if (!wd)
 	return FALSE;
 
     if (!compInitDisplayOptionsFromMetadata (d,
-					     &waterMetadata,
-					     waterDisplayOptionInfo,
+					     &frostMetadata,
+					     frostDisplayOptionInfo,
 					     wd->opt,
-					     WATER_DISPLAY_OPTION_NUM))
+					     FROST_DISPLAY_OPTION_NUM))
     {
 	free (wd);
 	return FALSE;
@@ -1614,14 +1614,14 @@ waterInitDisplay (CompPlugin  *p,
     wd->screenPrivateIndex = allocateScreenPrivateIndex (d);
     if (wd->screenPrivateIndex < 0)
     {
-	compFiniDisplayOptions (d, wd->opt, WATER_DISPLAY_OPTION_NUM);
+	compFiniDisplayOptions (d, wd->opt, FROST_DISPLAY_OPTION_NUM);
 	free (wd);
 	return FALSE;
     }
 
-    wd->offsetScale = wd->opt[WATER_DISPLAY_OPTION_OFFSET_SCALE].value.f * 50.0f;
+    wd->offsetScale = wd->opt[FROST_DISPLAY_OPTION_OFFSET_SCALE].value.f * 50.0f;
 
-    WRAP (wd, d, handleEvent, waterHandleEvent);
+    WRAP (wd, d, handleEvent, frostHandleEvent);
 
     d->base.privates[displayPrivateIndex].ptr = wd;
 
@@ -1629,53 +1629,53 @@ waterInitDisplay (CompPlugin  *p,
 }
 
 static void
-waterFiniDisplay (CompPlugin  *p,
+frostFiniDisplay (CompPlugin  *p,
 		  CompDisplay *d)
 {
-    WATER_DISPLAY (d);
+    FROST_DISPLAY (d);
 
     freeScreenPrivateIndex (d, wd->screenPrivateIndex);
 
     UNWRAP (wd, d, handleEvent);
 
-    compFiniDisplayOptions (d, wd->opt, WATER_DISPLAY_OPTION_NUM);
+    compFiniDisplayOptions (d, wd->opt, FROST_DISPLAY_OPTION_NUM);
 
     free (wd);
 }
 
 static Bool
-waterInitScreen (CompPlugin *p,
+frostInitScreen (CompPlugin *p,
 		 CompScreen *s)
 {
-    WaterScreen *ws;
+    frostScreen *ws;
 
-    WATER_DISPLAY (s->display);
+    FROST_DISPLAY (s->display);
 
-    ws = calloc (1, sizeof (WaterScreen));
+    ws = calloc (1, sizeof (frostScreen));
     if (!ws)
 	return FALSE;
 
     ws->grabIndex = 0;
 
-    WRAP (ws, s, preparePaintScreen, waterPreparePaintScreen);
-    WRAP (ws, s, donePaintScreen, waterDonePaintScreen);
-    WRAP (ws, s, drawWindowTexture, waterDrawWindowTexture);
+    WRAP (ws, s, preparePaintScreen, frostPreparePaintScreen);
+    WRAP (ws, s, donePaintScreen, frostDonePaintScreen);
+    WRAP (ws, s, drawWindowTexture, frostDrawWindowTexture);
 
     s->base.privates[wd->screenPrivateIndex].ptr = ws;
 
-    waterReset (s);
+    frostReset (s);
 
     return TRUE;
 }
 
 static void
-waterFiniScreen (CompPlugin *p,
+frostFiniScreen (CompPlugin *p,
 		 CompScreen *s)
 {
-    WaterFunction *function, *next;
+    frostFunction *function, *next;
     int		  i;
 
-    WATER_SCREEN (s);
+    FROST_SCREEN (s);
 
     if (ws->rainHandle)
 	compRemoveTimeout (ws->rainHandle);
@@ -1716,39 +1716,39 @@ waterFiniScreen (CompPlugin *p,
 }
 
 static CompBool
-waterInitObject (CompPlugin *p,
+frostInitObject (CompPlugin *p,
 		 CompObject *o)
 {
     static InitPluginObjectProc dispTab[] = {
 	(InitPluginObjectProc) 0, /* InitCore */
-	(InitPluginObjectProc) waterInitDisplay,
-	(InitPluginObjectProc) waterInitScreen
+	(InitPluginObjectProc) frostInitDisplay,
+	(InitPluginObjectProc) frostInitScreen
     };
 
     RETURN_DISPATCH (o, dispTab, ARRAY_SIZE (dispTab), TRUE, (p, o));
 }
 
 static void
-waterFiniObject (CompPlugin *p,
+frostFiniObject (CompPlugin *p,
 		 CompObject *o)
 {
     static FiniPluginObjectProc dispTab[] = {
 	(FiniPluginObjectProc) 0, /* FiniCore */
-	(FiniPluginObjectProc) waterFiniDisplay,
-	(FiniPluginObjectProc) waterFiniScreen
+	(FiniPluginObjectProc) frostFiniDisplay,
+	(FiniPluginObjectProc) frostFiniScreen
     };
 
     DISPATCH (o, dispTab, ARRAY_SIZE (dispTab), (p, o));
 }
 
 static CompOption *
-waterGetObjectOptions (CompPlugin *plugin,
+frostGetObjectOptions (CompPlugin *plugin,
 		       CompObject *object,
 		       int	  *count)
 {
     static GetPluginObjectOptionsProc dispTab[] = {
 	(GetPluginObjectOptionsProc) 0, /* GetCoreOptions */
-	(GetPluginObjectOptionsProc) waterGetDisplayOptions
+	(GetPluginObjectOptionsProc) frostGetDisplayOptions
     };
 
     *count = 0;
@@ -1757,14 +1757,14 @@ waterGetObjectOptions (CompPlugin *plugin,
 }
 
 static CompBool
-waterSetObjectOption (CompPlugin      *plugin,
+frostSetObjectOption (CompPlugin      *plugin,
 		      CompObject      *object,
 		      const char      *name,
 		      CompOptionValue *value)
 {
     static SetPluginObjectOptionProc dispTab[] = {
 	(SetPluginObjectOptionProc) 0, /* SetCoreOption */
-	(SetPluginObjectOptionProc) waterSetDisplayOption
+	(SetPluginObjectOptionProc) frostSetDisplayOption
     };
 
     RETURN_DISPATCH (object, dispTab, ARRAY_SIZE (dispTab), FALSE,
@@ -1772,53 +1772,53 @@ waterSetObjectOption (CompPlugin      *plugin,
 }
 
 static Bool
-waterInit (CompPlugin *p)
+frostInit (CompPlugin *p)
 {
-    if (!compInitPluginMetadataFromInfo (&waterMetadata,
+    if (!compInitPluginMetadataFromInfo (&frostMetadata,
 					 p->vTable->name,
-					 waterDisplayOptionInfo,
-					 WATER_DISPLAY_OPTION_NUM,
+					 frostDisplayOptionInfo,
+					 FROST_DISPLAY_OPTION_NUM,
 					 0, 0))
 	return FALSE;
 
     displayPrivateIndex = allocateDisplayPrivateIndex ();
     if (displayPrivateIndex < 0)
     {
-	compFiniMetadata (&waterMetadata);
+	compFiniMetadata (&frostMetadata);
 	return FALSE;
     }
 
-    compAddMetadataFromFile (&waterMetadata, p->vTable->name);
+    compAddMetadataFromFile (&frostMetadata, p->vTable->name);
 
     return TRUE;
 }
 
 static void
-waterFini (CompPlugin *p)
+frostFini (CompPlugin *p)
 {
     freeDisplayPrivateIndex (displayPrivateIndex);
-    compFiniMetadata (&waterMetadata);
+    compFiniMetadata (&frostMetadata);
 }
 
 static CompMetadata *
-waterGetMetadata (CompPlugin *plugin)
+frostGetMetadata (CompPlugin *plugin)
 {
-    return &waterMetadata;
+    return &frostMetadata;
 }
 
-static CompPluginVTable waterVTable = {
-    "water",
-    waterGetMetadata,
-    waterInit,
-    waterFini,
-    waterInitObject,
-    waterFiniObject,
-    waterGetObjectOptions,
-    waterSetObjectOption
+static CompPluginVTable frostVTable = {
+    "frost",
+    frostGetMetadata,
+    frostInit,
+    frostFini,
+    frostInitObject,
+    frostFiniObject,
+    frostGetObjectOptions,
+    frostSetObjectOption
 };
 
 CompPluginVTable *
 getCompPluginInfo20070830 (void)
 {
-    return &waterVTable;
+    return &frostVTable;
 }
