@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <compiz>
-    <plugin name="water">
-	<short>Water Effect</short>
-	<long>Adds water effects to different desktop actions</long>
+    <plugin name="frost">
+	<short>frost Effect</short>
+	<long>Adds frost effects to different desktop actions</long>
 	<category>Effects</category>
 	<deps>
 	    <relation type="before">
@@ -13,7 +13,7 @@
 	<display>
 	    <option name="initiate_key" type="key">
 		<short>Initiate</short>
-		<long>Enable pointer water effects</long>
+		<long>Enable pointer frost effects</long>
 		<default>&lt;Primary&gt;&lt;Super&gt;</default>
 	    </option>
 	    <option name="toggle_rain_key" type="key">
@@ -28,7 +28,7 @@
 	    </option>
 	    <option name="offset_scale" type="float">
 		<short>Offset Scale</short>
-		<long>Water offset scale</long>
+		<long>frost offset scale</long>
 		<default>1</default>
 		<min>0</min>
 		<max>10</max>
