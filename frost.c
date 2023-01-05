@@ -537,13 +537,13 @@ fboUpdate (CompScreen *s,
     glBegin (GL_QUADS);
 
     glTexCoord2f (0.0f, 0.0f);
-    glVertex2f   (0.0f, 0.0f);
+    glVertex2f   (-1.0f, -1.0f);
     glTexCoord2f (ws->tx, 0.0f);
-    glVertex2f   (1.0f, 0.0f);
+    glVertex2f   (1.0f, -1.0f);
     glTexCoord2f (ws->tx, ws->ty);
     glVertex2f   (1.0f, 1.0f);
     glTexCoord2f (0.0f, ws->ty);
-    glVertex2f   (0.0f, 1.0f);
+    glVertex2f   (-1.0f, 1.0f);
 
     glEnd ();
 
@@ -580,7 +580,7 @@ fboVertices (CompScreen *s,
 	return 0;
 
     glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    glColor4f (0.0f, 0.0f, 0.0f, v);
+    glColor4f (1.0f, 1.0f, 1.0f, v);
 
     glPointSize (3.0f);
     glLineWidth (1.0f);
