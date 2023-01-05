@@ -152,12 +152,14 @@ static const char *frostFpString =
 
     "TEX prev, t11, texture[0], %s;"
     "TEX c11,  t11, texture[1], %s;"
+    "TEX temp, t11, texture[2], %s;"
+    "MUL v, v, temp;"
 
     /* sample offsets */
-    "ADD t01, t11, { - %f, 0.0, 0.0, 0.0 };"
-    "ADD t21, t11, {   %f, 0.0, 0.0, 0.0 };"
-    "ADD t10, t11, { 0.0, - %f, 0.0, 0.0 };"
-    "ADD t12, t11, { 0.0,   %f, 0.0, 0.0 };"
+    "ADD t01, t11, { -0.5, 0.5, 0.0, 0.0 };"
+    "ADD t21, t11, { 0.5, 0.0, 0.0, 0.0 };"
+    "ADD t10, t11, { 0.5, -0.5, 0.0, 0.0 };"
+    "ADD t12, t11, { 0.0, 0.5, 0.0, 0.0 };"
 
     /* fetch nesseccary samples */
     "TEX c01, t01, texture[1], %s;"
@@ -166,37 +168,38 @@ static const char *frostFpString =
     "TEX c12, t12, texture[1], %s;"
 
     /* x/y normals from height */
-    "MOV v, { 0.0, 0.0, 0.75, 0.0 };"
+    "MOV v, { 0.0, 0.0, 0.0, 0.0 };"
     "SUB v.x, c12.w, c10.w;"
     "SUB v.y, c01.w, c21.w;"
+    "MUL v, v, 0.5;
+    "MAD v, v, 0.5, 1.0;
 
     /* bumpiness */
-    "MUL v, v, 1.5;"
+    "MUL v, v, param.w;"
 
     /* normalize */
-    "MAD temp, v.x, v.x, 1.0;"
-    "MAD temp, v.y, v.y, temp;"
-    "RSQ temp, temp.x;"
+    "DP3 temp, v, v;"
+    "RSQ temp, temp;"
     "MUL v, v, temp;"
 
     /* add scale and bias to normal */
-    "MAD v, v, 0.5, 0.5;"
+    "MAD v, v, param.z, param.y;"
 
     /* done with computing the normal, continue with computing the next
        height value */
     "ADD accel, c10, c12;"
-    "ADD accel, c01, accel;"
-    "ADD accel, c21, accel;"
-    "MAD accel, -4.0, c11, accel;"
+    "ADD accel, accel, c01;"
+    "ADD accel, accel, c21;"
+
 
     /* store new height in alpha component */
-    "MAD v.w, 2.0, c11, -prev.w;"
-    "MAD v.w, accel, param.x, v.w;"
+    "MAD v.w, c11, -prev.w, accel;"
+    "MUL v.w, v.w, param.x;"
 
     /* fade out height */
-    "MUL v.w, v.w, param.y;"
+    "MUL result.color.w, result.color.w, param.x;"
 
-    "MOV result.color, v;"
+    "MOV result.color.w, v.w;"
 
     "END";
 
