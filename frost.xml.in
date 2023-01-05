@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<compiz>
+    <plugin name="water">
+	<short>Water Effect</short>
+	<long>Adds water effects to different desktop actions</long>
+	<category>Effects</category>
+	<deps>
+	    <relation type="before">
+		<plugin>blur</plugin>
+		<plugin>video</plugin>
+	    </relation>
+	</deps>
+	<display>
+	    <option name="initiate_key" type="key">
+		<short>Initiate</short>
+		<long>Enable pointer water effects</long>
+		<default>&lt;Primary&gt;&lt;Super&gt;</default>
+	    </option>
+	    <option name="toggle_rain_key" type="key">
+		<short>Toggle rain</short>
+		<long>Toggle rain effect</long>
+		<default>&lt;Shift&gt;F9</default>
+	    </option>
+	    <option name="toggle_wiper_key" type="key">
+		<short>Toggle wiper</short>
+		<long>Toggle wiper effect</long>
+		<default>&lt;Shift&gt;F8</default>
+	    </option>
+	    <option name="offset_scale" type="float">
+		<short>Offset Scale</short>
+		<long>Water offset scale</long>
+		<default>1</default>
+		<min>0</min>
+		<max>10</max>
+		<precision>0.1</precision>
+	    </option>
+	    <option name="rain_delay" type="int">
+		<short>Rain Delay</short>
+		<long>Delay (in ms) between each rain-drop</long>
+		<default>250</default>
+		<min>1</min>
+		<max>3600000</max>
+	    </option>
+	    <option name="title_wave" type="bell">
+		<short>Title wave</short>
+		<long>Wave effect from window title</long>
+		<default>false</default>
+	    </option>
+	    <option name="point" type="action">
+		<short>Point</short>
+		<long>Add point</long>
+	    </option>
+	    <option name="line" type="action">
+		<short>Line</short>
+		<long>Add line</long>
+	    </option>
+	</display>
+    </plugin>
+</compiz>
