@@ -304,13 +304,13 @@ getBumpMapFragmentFunction (CompScreen  *s,
 		  
 		  /* normalize the normal map */
 		  "MAD temp, normal.x, normal.x, normal.y;"
-		  "RSQ temp, temp;""
+		  "RSQ temp, temp;"
 		  "MUL normal, normal, temp;"
 
 		  /* scale down normal by height and constant and use as
 		     offset in texture */
 		  "MAD v.xy, normal, accel, { 0.5, 0.5 };"
-		  "TEX prev, v, texture[0], %s;"MUL v, v, param.diffuse;
+		  "TEX prev, v, texture[0], %s;"
 
 		  unit, unit,
 		  (ws->target == GL_TEXTURE_2D) ? "2D" : "RECT",
