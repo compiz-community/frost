@@ -309,8 +309,8 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 		  /* scale down normal by height and constant and use as
 		     offset in texture */
-		  "MAD v.xy, normal, accel, { 0.5, 0.5 };"
-		  "TEX prev, v, texture[0], %s;"
+		  "MUL offset, normal, offset.w;"
+		  "MUL offset, offset, program.env[%d];",
 
 		  unit, unit,
 		  (ws->target == GL_TEXTURE_2D) ? "2D" : "RECT",
