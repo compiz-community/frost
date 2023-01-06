@@ -152,14 +152,12 @@ static const char *frostFpString =
 
     "TEX prev, t11, texture[0], %s;"
     "TEX c11,  t11, texture[1], %s;"
-    "TEX temp, t11, texture[2], %s;"
-    "MUL v, v, temp;"
 
     /* sample offsets */
-    "ADD t01, t11, { -0.5, 0.5, 0.0, 0.0 };"
-    "ADD t21, t11, { 0.5, 0.0, 0.0, 0.0 };"
-    "ADD t10, t11, { 0.5, -0.5, 0.0, 0.0 };"
-    "ADD t12, t11, { 0.0, 0.5, 0.0, 0.0 };"
+    "ADD t01, t11, { - %f, 0.0, 0.0, 0.0 };"
+    "ADD t21, t11, {   %f, 0.0, 0.0, 0.0 };"
+    "ADD t10, t11, { 0.0, - %f, 0.0, 0.0 };"
+    "ADD t12, t11, { 0.0,   %f, 0.0, 0.0 };"
 
     /* fetch nesseccary samples */
     "TEX c01, t01, texture[1], %s;"
@@ -168,38 +166,32 @@ static const char *frostFpString =
     "TEX c12, t12, texture[1], %s;"
 
     /* x/y normals from height */
-    "MOV v, { 0.0, 0.0, 0.0, 0.0 };"
+    "MOV v, { };"
     "SUB v.x, c12.w, c10.w;"
     "SUB v.y, c01.w, c21.w;"
-    "MUL v, v, 0.5;
-    "MAD v, v, 0.5, 1.0;
 
     /* bumpiness */
-    "MUL v, v, param.w;"
+    "MUL v, v, param.bumpiness;"
 
     /* normalize */
-    "DP3 temp, v, v;"
+    "MAD temp, v.x, v.x, v.y;"
     "RSQ temp, temp;"
     "MUL v, v, temp;"
 
     /* add scale and bias to normal */
-    "MAD v, v, param.z, param.y;"
+    "MAD v, v, param.nscale, param.nbias;"
 
     /* done with computing the normal, continue with computing the next
        height value */
-    "ADD accel, c10, c12;"
-    "ADD accel, accel, c01;"
-    "ADD accel, accel, c21;"
-
+    "ADD accel, c10, c12,c01,c21;"
 
     /* store new height in alpha component */
-    "MAD v.w, c11, -prev.w, accel;"
-    "MUL v.w, v.w, param.x;"
+    "MAD v.w, c11, -prev.w;"
 
     /* fade out height */
-    "MUL result.color.w, result.color.w, param.x;"
+    "MUL v.w, v.w, param.fade;"
 
-    "MOV result.color.w, v.w;"
+    "MOV result.color, v;"
 
     "END";
 
@@ -305,20 +297,20 @@ getBumpMapFragmentFunction (CompScreen  *s,
 		  "TEX normal, fragment.texcoord[%d], texture[%d], %s;"
 
 		  /* save height */
-		  "MOV offset, normal;"
+		  "MOV result.color.w, c11;"
 
 		  /* remove scale and bias from normal */
-		  "MAD normal, normal, 2.0, -1.0;"
-
+		  "MAD normal, normal, param.nscale, -param.nbias;"
+		  
 		  /* normalize the normal map */
-		  "DP3 temp, normal, normal;"
-		  "RSQ temp, temp.x;"
+		  "MAD temp, normal.x, normal.x, normal.y;"
+		  "RSQ temp, temp;""
 		  "MUL normal, normal, temp;"
 
 		  /* scale down normal by height and constant and use as
 		     offset in texture */
-		  "MUL offset, normal, offset.w;"
-		  "MUL offset, offset, program.env[%d];",
+		  "MAD v.xy, normal, accel, { 0.5, 0.5 };"
+		  "TEX prev, v, texture[0], %s;"MUL v, v, param.diffuse;
 
 		  unit, unit,
 		  (ws->target == GL_TEXTURE_2D) ? "2D" : "RECT",
@@ -340,8 +332,9 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 		  /* normal dot lightdir, this should eventually be
 		     changed to a real light vector */
-		  "DP3 bump, normal, { 0.707, 0.707, 0.0, 0.0 };"
-		  "MUL bump, bump, state.light[0].diffuse;");
+		  "TEMP temp;"
+		  "DP3 temp, normal, lightdir;"
+		  "MAD result.color, diffuse, temp, result.color;"
 
 	if (!addDataOpToFunctionData (data, str))
 	{
@@ -359,7 +352,8 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 		  /* diffuse per-vertex lighting, opacity and brightness
 		     and add lightsource bump color */
-		  "ADD output, output, bump;");
+		  "MUL v, v, param.diffuse;"
+		  "MAD v, v, param.opacity, param.brightness;"
 
 	if (!addDataOpToFunctionData (data, str))
 	{
