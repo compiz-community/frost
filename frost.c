@@ -645,7 +645,7 @@ softwareUpdate (CompScreen *s,
 
 	    value = (2.0f * D (d11, j) - D (d01, j) + accel) * fade;
 
-	    CLAMP (value, 0.0f, 1.0f);
+	    CLAMP (value, -1.0f, 1.0f);
 
 	    D (d01, j) = value;
 	}
@@ -670,8 +670,10 @@ softwareUpdate (CompScreen *s,
 	D (d01, dWidth - 1) = D (d01, dWidth - 2);
 
 	d01 += dWidth;
+
     }
 
+    d01 = ws->d0 + dWidth;
     d10 = ws->d1;
     d11 = d10 + dWidth;
     d12 = d11 + dWidth;
