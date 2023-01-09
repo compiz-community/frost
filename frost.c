@@ -165,33 +165,28 @@ static const char *frostFpString =
     "TEX c10, t10, texture[1], %s;"
     "TEX c12, t12, texture[1], %s;"
 
-    /* x/y normals from height */
-    "MOV v, { };"
-    "SUB v.x, c12.w, c10.w;"
-    "SUB v.y, c01.w, c21.w;"
+    /* x/y normals from frost */
+    "MOV t01.rg, t01.ba; MOV t21.rg, t21.ba; MOV t10.rg, t10.ba; MOV t12.rg, t12.ba;"
 
-    /* bumpiness */
-    "MUL v, v, param.bumpiness;"
+    /* frostiness */
+    "MUL t01.rg, t01.rg, { frostiness, frostiness, 0.0, 0.0 };"
 
-    /* normalize */
-    "MAD temp, v.x, v.x, v.y;"
-    "RSQ temp, temp;"
-    "MUL v, v, temp;"
+    /* frostize */
+    "DP3 t01.a, t01.rg, t01.rg; RSQ t01.a, t01.a; MUL t01.rg, t01.rg, t01.a;"
 
-    /* add scale and bias to normal */
-    "MAD v, v, param.nscale, param.nbias;"
+    /* add scale and bias to frost normal */
+    "ADD t01.rg, t01.rg, { scale, bias, 0.0, 0.0 };"
 
-    /* done with computing the normal, continue with computing the next
-       height value */
-    "ADD accel, c10, c12,c01,c21;"
+    /* done with computing the frost normal, continue with computing the next frost value */
+    "MOV t02, t01; ADD t02.rg, t02.rg, { 1.0, 1.0, 0.0, 0.0 };"
 
-    /* store new height in alpha component */
-    "MAD v.w, c11, -prev.w;"
+    /* store new frost in alpha component */
+    "ALPHA_TO_COLOR t01.a, t01.a; STORE t01.a, { t01.r, t01.g, t01.b, t01.a };"
 
-    /* fade out height */
-    "MUL v.w, v.w, param.fade;"
+    /* fade out frost */
+    "MUL t01.a, t01.a, { fade, fade, fade, fade };"
 
-    "MOV result.color, v;"
+    "MOV result.color, t01;"
 
     "END";
 
@@ -293,24 +288,23 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 	snprintf (str, 1024,
 
-		  /* get normal from normal map */
-		  "TEX normal, fragment.texcoord[%d], texture[%d], %s;"
+		  /* get frost normal from frost normal map */
+		  "TEX t01, vTexCoord, texture[1], 2D;"
 
-		  /* save height */
-		  "MOV result.color.w, c11;"
+		  /* save frost */
+		  "MOV t02, t01;"
 
-		  /* remove scale and bias from normal */
-		  "MAD normal, normal, param.nscale, -param.nbias;"
+		  /* remove scale and bias from frost normal */
+		  "MUL t01, t01, { scale, scale, scale, scale };"
 		  
-		  /* normalize the normal map */
-		  "MAD temp, normal.x, normal.x, normal.y;"
-		  "RSQ temp, temp;"
-		  "MUL normal, normal, temp;"
+		  /*normalize the frost normal map */
+		  "DP3 t01, t01, t01;"
+		  "RSQ t01.w, t01.w;"
+		  "MUL t01, t01, t01.w;"
 
-		  /* scale down normal by height and constant and use as
-		     offset in texture */
-		  "MUL offset, normal, offset.w;"
-		  "MUL offset, offset, program.env[%d];",
+		  /* scale down frost normal by frost height and constant and use as offset in frost texture */
+		  "MUL t01, t01, { frostHeight, frostHeight, frostHeight, frostHeight };"
+		  "ADD t02, t02, t01;",
 
 		  unit, unit,
 		  (ws->target == GL_TEXTURE_2D) ? "2D" : "RECT",
@@ -330,11 +324,8 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 	snprintf (str, 1024,
 
-		  /* normal dot lightdir, this should eventually be
-		     changed to a real light vector */
-		  "TEMP temp;"
-		  "DP3 temp, normal, lightdir;"
-		  "MAD result.color, diffuse, temp, result.color;"
+		  /* frost normal dot frost lightdir, this should eventually be changed to a real frost light vector */
+		  "DP3 t01, t01, frostLightDir;"
 
 	if (!addDataOpToFunctionData (data, str))
 	{
@@ -350,10 +341,10 @@ getBumpMapFragmentFunction (CompScreen  *s,
 
 	snprintf (str, 1024,
 
-		  /* diffuse per-vertex lighting, opacity and brightness
-		     and add lightsource bump color */
-		  "MUL v, v, param.diffuse;"
-		  "MAD v, v, param.opacity, param.brightness;"
+		  /* diffuse per-vertex frost lighting, frost opacity and frost brightness and add frost lightsource bump color */
+		  "MUL t01, frostOpacity, frostBrightness;"
+		  "MAD t01, t01, frostLightSourceBumpColor, t02;"
+		  "MUL result.color, t01, t02;"
 
 	if (!addDataOpToFunctionData (data, str))
 	{
@@ -618,14 +609,14 @@ softwareUpdate (CompScreen *s,
 
     FROST_SCREEN (s);
 
-    if (!ws->texture[TINDEX (ws, 0)])
-	allocTexture (s, TINDEX (ws, 0));
+    if (!frs->texture[FTINDEX (frs, 0)])
+	allocTexture (frost, FTINDEX (frs, 0));
 
     dt *= K * 2.0f;
     fade *= 0.99f;
 
-    dWidth  = ws->width  + 2;
-    dHeight = ws->height + 2;
+    dWidth = frs->width + 2;
+    dHeight = frs->height + 2;
 
 #define D(d, j) (*((d) + (j)))
 
@@ -685,6 +676,12 @@ softwareUpdate (CompScreen *s,
     {
 	for (j = 0; j < ws->width; j++)
 	{
+	d01 += dWidth;
+	d10 += dWidth;
+	d11 += dWidth;
+	d12 += dWidth;
+    }
+	   
 	    v0 = (D (d12, j)     - D (d10, j))     * 1.5f;
 	    v1 = (D (d11, j - 1) - D (d11, j + 1)) * 1.5f;
 
