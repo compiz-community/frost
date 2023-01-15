@@ -49,7 +49,7 @@ typedef struct _frostFunction {
     int unit;
 } frostFunction;
 
-#define TINDEX(ws, i) (((ws)->tIndex + (i)) % TEXTURE_NUM)
+#define TINDEX(fs, i) (((fs)->tIndex + (i)) % TEXTURE_NUM)
 
 #define CLAMP(v, min, max) \
     if ((v) > (max))	   \
@@ -124,13 +124,13 @@ typedef struct _frostScreen {
     ((frostDisplay *) (d)->base.privates[displayPrivateIndex].ptr)
 
 #define FROST_DISPLAY(d)		     \
-    frostDisplay *wd = GET_FROST_DISPLAY (d)
+    frostDisplay *fd = GET_FROST_DISPLAY (d)
 
-#define GET_FROST_SCREEN(s, wd)					       \
-    ((frostScreen *) (s)->base.privates[(wd)->screenPrivateIndex].ptr)
+#define GET_FROST_SCREEN(s, fd)					       \
+    ((frostScreen *) (s)->base.privates[(fd)->screenPrivateIndex].ptr)
 
 #define FROST_SCREEN(s)							   \
-    frostScreen *ws = GET_FROST_SCREEN (s, GET_FROST_DISPLAY (s->display))
+    frostScreen *fs = GET_FROST_SCREEN (s, GET_FROST_DISPLAY (s->display))
 
 #define NUM_OPTIONS(s) (sizeof ((s)->opt) / sizeof (CompOption))
 
@@ -230,11 +230,11 @@ loadfrostProgram (CompScreen *s)
 
     FROST_SCREEN (s);
 
-    if (ws->target == GL_TEXTURE_2D)
+    if (fs->target == GL_TEXTURE_2D)
 	sprintf (buffer, frostFpString,
 		 "2D", "2D",
-		 1.0f / ws->width,  1.0f / ws->width,
-		 1.0f / ws->height, 1.0f / ws->height,
+		 1.0f / fs->width,  1.0f / fs->width,
+		 1.0f / fs->height, 1.0f / fs->height,
 		 "2D", "2D", "2D", "2D");
     else
 	sprintf (buffer, frostFpString,
@@ -242,7 +242,7 @@ loadfrostProgram (CompScreen *s)
 		 1.0f, 1.0f, 1.0f, 1.0f,
 		 "RECT", "RECT", "RECT", "RECT");
 
-    return loadFragmentProgram (s, &ws->program, buffer);
+    return loadFragmentProgram (s, &fs->program, buffer);
 }
 
 static int
@@ -262,7 +262,7 @@ getBumpMapFragmentFunction (CompScreen  *s,
     else
 	target = COMP_FETCH_TARGET_RECT;
 
-    for (function = ws->bumpMapFunctions; function; function = function->next)
+    for (function = fs->bumpMapFunctions; function; function = function->next)
     {
 	if (function->param  == param &&
 	    function->unit   == unit  &&
@@ -307,7 +307,7 @@ getBumpMapFragmentFunction (CompScreen  *s,
 		  "ADD t02, t02, t01;",
 
 		  unit, unit,
-		  (ws->target == GL_TEXTURE_2D) ? "2D" : "RECT",
+		  (fs->target == GL_TEXTURE_2D) ? "2D" : "RECT",
 		  param);
 
 	if (!addDataOpToFunctionData (data, str))
@@ -362,8 +362,8 @@ getBumpMapFragmentFunction (CompScreen  *s,
 	    function->param  = param;
 	    function->unit   = unit;
 
-	    function->next = ws->bumpMapFunctions;
-	    ws->bumpMapFunctions = function;
+	    function->next = fs->bumpMapFunctions;
+	    fs->bumpMapFunctions = function;
 	}
 
 	destroyFunctionData (data);
@@ -380,19 +380,19 @@ allocTexture (CompScreen *s,
 {
     FROST_SCREEN (s);
 
-    glGenTextures (1, &ws->texture[index]);
-    glBindTexture (ws->target, ws->texture[index]);
+    glGenTextures (1, &fs->texture[index]);
+    glBindTexture (fs->target, fs->texture[index]);
 
-    glTexParameteri (ws->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri (ws->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri (ws->target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri (ws->target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri (fs->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri (fs->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri (fs->target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri (fs->target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D (ws->target,
+    glTexImage2D (fs->target,
 		  0,
 		  GL_RGBA,
-		  ws->width,
-		  ws->height,
+		  fs->width,
+		  fs->height,
 		  0,
 		  GL_BGRA,
 
@@ -402,9 +402,9 @@ allocTexture (CompScreen *s,
 		  GL_UNSIGNED_BYTE,
 #endif
 
-		  ws->t0);
+		  fs->t0);
 
-    glBindTexture (ws->target, 0);
+    glBindTexture (fs->target, 0);
 }
 
 static int
@@ -413,44 +413,44 @@ fboPrologue (CompScreen *s,
 {
     FROST_SCREEN (s);
 
-    if (!ws->fbo)
+    if (!fs->fbo)
 	return 0;
 
-    if (!ws->texture[tIndex])
+    if (!fs->texture[tIndex])
 	allocTexture (s, tIndex);
 
-    (*s->bindFramebuffer) (GL_FRAMEBUFFER_EXT, ws->fbo);
+    (*s->bindFramebuffer) (GL_FRAMEBUFFER_EXT, fs->fbo);
 
     (*s->framebufferTexture2D) (GL_FRAMEBUFFER_EXT,
 				GL_COLOR_ATTACHMENT0_EXT,
-				ws->target, ws->texture[tIndex],
+				fs->target, fs->texture[tIndex],
 				0);
 
     glDrawBuffer (GL_COLOR_ATTACHMENT0_EXT);
     glReadBuffer (GL_COLOR_ATTACHMENT0_EXT);
 
     /* check status the first time */
-    if (!ws->fboStatus)
+    if (!fs->fboStatus)
     {
-	ws->fboStatus = (*s->checkFramebufferStatus) (GL_FRAMEBUFFER_EXT);
-	if (ws->fboStatus != GL_FRAMEBUFFER_COMPLETE_EXT)
+	fs->fboStatus = (*s->checkFramebufferStatus) (GL_FRAMEBUFFER_EXT);
+	if (fs->fboStatus != GL_FRAMEBUFFER_COMPLETE_EXT)
 	{
 	    compLogMessage ("frost", CompLogLevelError,
 			    "framebuffer incomplete");
 
 	    (*s->bindFramebuffer) (GL_FRAMEBUFFER_EXT, 0);
-	    (*s->deleteFramebuffers) (1, &ws->fbo);
+	    (*s->deleteFramebuffers) (1, &fs->fbo);
 
 	    glDrawBuffer (GL_BACK);
 	    glReadBuffer (GL_BACK);
 
-	    ws->fbo = 0;
+	    fs->fbo = 0;
 
 	    return 0;
 	}
     }
 
-    glViewport (0, 0, ws->width, ws->height);
+    glViewport (0, 0, fs->width, fs->height);
     glMatrixMode (GL_PROJECTION);
     glPushMatrix ();
     glLoadIdentity ();
@@ -495,29 +495,29 @@ fboUpdate (CompScreen *s,
 {
     FROST_SCREEN (s);
 
-    if (!fboPrologue (s, TINDEX (ws, 1)))
+    if (!fboPrologue (s, TINDEX (fs, 1)))
 	return 0;
 
-    if (!ws->texture[TINDEX (ws, 2)])
-	allocTexture (s, TINDEX (ws, 2));
+    if (!fs->texture[TINDEX (fs, 2)])
+	allocTexture (s, TINDEX (fs, 2));
 
-    if (!ws->texture[TINDEX (ws, 0)])
-	allocTexture (s, TINDEX (ws, 0));
+    if (!fs->texture[TINDEX (fs, 0)])
+	allocTexture (s, TINDEX (fs, 0));
 
-    glEnable (ws->target);
+    glEnable (fs->target);
 
     (*s->activeTexture) (GL_TEXTURE0_ARB);
-    glBindTexture (ws->target, ws->texture[TINDEX (ws, 2)]);
+    glBindTexture (fs->target, fs->texture[TINDEX (fs, 2)]);
 
-    glTexParameteri (ws->target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri (ws->target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri (fs->target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri (fs->target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     (*s->activeTexture) (GL_TEXTURE1_ARB);
-    glBindTexture (ws->target, ws->texture[TINDEX (ws, 0)]);
-    glTexParameteri (ws->target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri (ws->target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture (fs->target, fs->texture[TINDEX (fs, 0)]);
+    glTexParameteri (fs->target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri (fs->target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
     glEnable (GL_FRAGMENT_PROGRAM_ARB);
-    (*s->bindProgram) (GL_FRAGMENT_PROGRAM_ARB, ws->program);
+    (*s->bindProgram) (GL_FRAGMENT_PROGRAM_ARB, fs->program);
 
     (*s->programLocalParameter4f) (GL_FRAGMENT_PROGRAM_ARB, 0,
 				   dt * K, fade, 1.0f, 1.0f);
@@ -526,31 +526,31 @@ fboUpdate (CompScreen *s,
 
     glTexCoord2f (0.0f, 0.0f);
     glVertex2f   (-1.0f, -1.0f);
-    glTexCoord2f (ws->tx, 0.0f);
+    glTexCoord2f (fs->tx, 0.0f);
     glVertex2f   (1.0f, -1.0f);
-    glTexCoord2f (ws->tx, ws->ty);
+    glTexCoord2f (fs->tx, fs->ty);
     glVertex2f   (1.0f, 1.0f);
-    glTexCoord2f (0.0f, ws->ty);
+    glTexCoord2f (0.0f, fs->ty);
     glVertex2f   (-1.0f, 1.0f);
 
     glEnd ();
 
     glDisable (GL_FRAGMENT_PROGRAM_ARB);
 
-    glTexParameteri (ws->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri (ws->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture (ws->target, 0);
+    glTexParameteri (fs->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri (fs->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture (fs->target, 0);
     (*s->activeTexture) (GL_TEXTURE0_ARB);
-    glTexParameteri (ws->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri (ws->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture (ws->target, 0);
+    glTexParameteri (fs->target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri (fs->target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glBindTexture (fs->target, 0);
 
-    glDisable (ws->target);
+    glDisable (fs->target);
 
     fboEpilogue (s);
 
     /* increment texture index */
-    ws->tIndex = TINDEX (ws, 1);
+    fs->tIndex = TINDEX (fs, 1);
 
     return 1;
 }
@@ -564,7 +564,7 @@ fboVertices (CompScreen *s,
 {
     FROST_SCREEN (s);
 
-    if (!fboPrologue (s, TINDEX (ws, 0)))
+    if (!fboPrologue (s, TINDEX (fs, 0)))
 	return 0;
 
     glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
@@ -573,7 +573,7 @@ fboVertices (CompScreen *s,
     glPointSize (3.0f);
     glLineWidth (1.0f);
 
-    glScalef (1.0f / ws->width, 1.0f / ws->height, 1.0);
+    glScalef (1.0f / fs->width, 1.0f / fs->height, 1.0);
     glTranslatef (0.5f, 0.5f, 0.0f);
 
     glBegin (type);
@@ -609,19 +609,19 @@ softwareUpdate (CompScreen *s,
 
     FROST_SCREEN (s);
 
-    if (!frs->texture[FTINDEX (frs, 0)])
-	allocTexture (frost, FTINDEX (frs, 0));
+    if (!fs->texture[TINDEX (fs, 0)])
+	allocTexture (s, TINDEX (fs, 0));
 
     dt *= K * 2.0f;
     fade *= 0.99f;
 
-    dWidth = frs->width + 2;
-    dHeight = frs->height + 2;
+    dWidth = fs->width + 2;
+    dHeight = fs->height + 2;
 
 #define D(d, j) (*((d) + (j)))
 
-    d01 = ws->d0 + dWidth;
-    d10 = ws->d1;
+    d01 = ->d0 + dWidth;
+    d10 = fs->d1;
     d11 = d10 + dWidth;
     d12 = d11 + dWidth;
 
@@ -648,12 +648,12 @@ softwareUpdate (CompScreen *s,
     }
 
     /* update border */
-    memcpy (ws->d0, ws->d0 + dWidth, dWidth * sizeof (GLfloat));
-    memcpy (ws->d0 + dWidth * (dHeight - 1),
-	    ws->d0 + dWidth * (dHeight - 2),
+    memcpy (fs->d0, fs->d0 + dWidth, dWidth * sizeof (GLfloat));
+    memcpy (fs->d0 + dWidth * (dHeight - 1),
+	    fs->d0 + dWidth * (dHeight - 2),
 	    dWidth * sizeof (GLfloat));
 
-    d01 = ws->d0 + dWidth;
+    d01 = fs->d0 + dWidth;
 
     for (i = 1; i < dHeight - 1; i++)
     {
@@ -664,17 +664,17 @@ softwareUpdate (CompScreen *s,
 
     }
 
-    d01 = ws->d0 + dWidth;
-    d10 = ws->d1;
+    d01 = fs->d0 + dWidth;
+    d10 = fs->d1;
     d11 = d10 + dWidth;
     d12 = d11 + dWidth;
 
-    t0 = ws->t0;
+    t0 = fs->t0;
 
     /* update texture */
-    for (i = 0; i < ws->height; i++)
+    for (i = 0; i < fs->height; i++)
     {
-	for (j = 0; j < ws->width; j++)
+	for (j = 0; j < fs->width; j++)
 	{
 	d01 += dWidth;
 	d10 += dWidth;
@@ -706,24 +706,24 @@ softwareUpdate (CompScreen *s,
 	d11 += dWidth;
 	d12 += dWidth;
 
-	t0 += ws->width * 4;
+	t0 += fs->width * 4;
     }
 
 #undef D
 
     /* swap height maps */
-    dTmp   = ws->d0;
-    ws->d0 = ws->d1;
-    ws->d1 = dTmp;
+    dTmp   = fs->d0;
+    fs->d0 = fs->d1;
+    fs->d1 = dTmp;
 
-    if (ws->texture[TINDEX (ws, 0)])
+    if (fs->texture[TINDEX (fs, 0)])
     {
-	glBindTexture (ws->target, ws->texture[TINDEX (ws, 0)]);
-	glTexImage2D (ws->target,
+	glBindTexture (fs->target, fs->texture[TINDEX (fs, 0)]);
+	glTexImage2D (fs->target,
 		      0,
 		      GL_RGBA,
-		      ws->width,
-		      ws->height,
+		      fs->width,
+		      fs->height,
 		      0,
 		      GL_BGRA,
 
@@ -733,12 +733,12 @@ softwareUpdate (CompScreen *s,
 		  GL_UNSIGNED_BYTE,
 #endif
 
-		      ws->t0);
+		      fs->t0);
     }
 }
 
 
-#define SET(x, y, v) *((ws->d1) + (ws->width + 2) * (y + 1) + (x + 1)) = (v)
+#define SET(x, y, v) *((fs->d1) + (fs->width + 2) * (y + 1) + (x + 1)) = (v)
 
 static void
 softwarePoints (CompScreen *s,
@@ -874,10 +874,10 @@ frostUpdate (CompScreen *s,
 
     FROST_SCREEN (s);
 
-    if (ws->count < 1000)
+    if (fs->count < 1000)
     {
-	if (ws->count > 1)
-	    fade = 0.90f + ws->count / 10000.0f;
+	if (fs->count > 1)
+	    fade = 0.90f + fs->count / 10000.0f;
 	else
 	    fade = 0.0f;
     }
@@ -895,8 +895,8 @@ scaleVertices (CompScreen *s,
 
     while (n--)
     {
-	p[n].x = (ws->width  * p[n].x) / s->width;
-	p[n].y = (ws->height * p[n].y) / s->height;
+	p[n].x = (fs->width  * p[n].x) / s->width;
+	p[n].y = (fs->height * p[n].y) / s->height;
     }
 }
 
@@ -917,8 +917,8 @@ frostVertices (CompScreen *s,
     if (!fboVertices (s, type, p, n, v))
 	softwareVertices (s, type, p, n, v);
 
-    if (ws->count < 3000)
-	ws->count = 3000;
+    if (fs->count < 3000)
+	fs->count = 3000;
 }
 
 static Bool
@@ -944,12 +944,12 @@ frostWiperTimeout (void *closure)
 
     FROST_SCREEN (s);
 
-    if (ws->count)
+    if (fs->count)
     {
-	if (ws->wiperAngle == 0.0f)
-	    ws->wiperSpeed = 2.5f;
-	else if (ws->wiperAngle == 180.0f)
-	    ws->wiperSpeed = -2.5f;
+	if (fs->wiperAngle == 0.0f)
+	    fs->wiperSpeed = 2.5f;
+	else if (fs->wiperAngle == 180.0f)
+	    fs->wiperSpeed = -2.5f;
     }
 
     return TRUE;
@@ -962,20 +962,20 @@ frostReset (CompScreen *s)
 
     FROST_SCREEN (s);
 
-    ws->height = TEXTURE_SIZE;
-    ws->width  = (ws->height * s->width) / s->height;
+    fs->height = TEXTURE_SIZE;
+    fs->width  = (fs->height * s->width) / s->height;
 
     if (s->textureNonPowerOfTwo ||
-	(POWER_OF_TWO (ws->width) && POWER_OF_TWO (ws->height)))
+	(POWER_OF_TWO (fs->width) && POWER_OF_TWO (fs->height)))
     {
-	ws->target = GL_TEXTURE_2D;
-	ws->tx = ws->ty = 1.0f;
+	fs->target = GL_TEXTURE_2D;
+	fs->tx = fs->ty = 1.0f;
     }
     else
     {
-	ws->target = GL_TEXTURE_RECTANGLE_NV;
-	ws->tx = ws->width;
-	ws->ty = ws->height;
+	fs->target = GL_TEXTURE_RECTANGLE_NV;
+	fs->tx = fs->width;
+	fs->ty = fs->height;
     }
 
     if (!s->fragmentProgram)
@@ -984,40 +984,40 @@ frostReset (CompScreen *s)
     if (s->fbo)
     {
 	loadfrostProgram (s);
-	if (!ws->fbo)
-	    (*s->genFramebuffers) (1, &ws->fbo);
+	if (!fs->fbo)
+	    (*s->genFramebuffers) (1, &fs->fbo);
     }
 
-    ws->fboStatus = 0;
+    fs->fboStatus = 0;
 
     for (i = 0; i < TEXTURE_NUM; i++)
     {
-	if (ws->texture[i])
+	if (fs->texture[i])
 	{
-	    glDeleteTextures (1, &ws->texture[i]);
-	    ws->texture[i] = 0;
+	    glDeleteTextures (1, &fs->texture[i]);
+	    fs->texture[i] = 0;
 	}
     }
 
-    if (ws->data)
-	free (ws->data);
+    if (fs->data)
+	free (fs->data);
 
-    size = (ws->width + 2) * (ws->height + 2);
+    size = (fs->width + 2) * (fs->height + 2);
 
-    ws->data = calloc (1, (sizeof (float) * size * 2) +
-		       (sizeof (GLubyte) * ws->width * ws->height * 4));
-    if (!ws->data)
+    fs->data = calloc (1, (sizeof (float) * size * 2) +
+		       (sizeof (GLubyte) * fs->width * fs->height * 4));
+    if (!fs->data)
 	return;
 
-    ws->d0 = ws->data;
-    ws->d1 = (ws->d0 + (size));
-    ws->t0 = (unsigned char *) (ws->d1 + (size));
+    fs->d0 = fs->data;
+    fs->d1 = (fs->d0 + (size));
+    fs->t0 = (unsigned char *) (fs->d1 + (size));
 
-    for (i = 0; i < ws->height; i++)
+    for (i = 0; i < fs->height; i++)
     {
-	for (j = 0; j < ws->width; j++)
+	for (j = 0; j < fs->width; j++)
 	{
-	    (ws->t0 + (ws->width * 4 * i + j * 4))[0] = 0xff;
+	    (fs->t0 + (fs->width * 4 * i + j * 4))[0] = 0xff;
 	}
     }
 }
@@ -1030,7 +1030,7 @@ frostDrawWindowTexture (CompWindow	     *w,
 {
     FROST_SCREEN (w->screen);
 
-    if (ws->count)
+    if (fs->count)
     {
 	FragmentAttrib fa = *attrib;
 	Bool	       lighting = w->screen->lighting;
@@ -1051,10 +1051,10 @@ frostDrawWindowTexture (CompWindow	     *w,
 
 	    (*w->screen->activeTexture) (GL_TEXTURE0_ARB + unit);
 
-	    glBindTexture (ws->target, ws->texture[TINDEX (ws, 0)]);
+	    glBindTexture (fs->target, fs->texture[TINDEX (fs, 0)]);
 
 	    plane[1] = plane[2] = 0.0f;
-	    plane[0] = ws->tx / (GLfloat) w->screen->width;
+	    plane[0] = fs->tx / (GLfloat) w->screen->width;
 	    plane[3] = 0.0f;
 
 	    glTexGeni (GL_S, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
@@ -1062,7 +1062,7 @@ frostDrawWindowTexture (CompWindow	     *w,
 	    glEnable (GL_TEXTURE_GEN_S);
 
 	    plane[0] = plane[2] = 0.0f;
-	    plane[1] = ws->ty / (GLfloat) w->screen->height;
+	    plane[1] = fs->ty / (GLfloat) w->screen->height;
 	    plane[3] = 0.0f;
 
 	    glTexGeni (GL_T, GL_TEXTURE_GEN_MODE, GL_EYE_LINEAR);
@@ -1073,25 +1073,25 @@ frostDrawWindowTexture (CompWindow	     *w,
 
 	    (*w->screen->programEnvParameter4f) (GL_FRAGMENT_PROGRAM_ARB, param,
 						 texture->matrix.yy *
-						 wd->offsetScale,
+						 fd->offsetScale,
 						 -texture->matrix.xx *
-						 wd->offsetScale,
+						 fd->offsetScale,
 						 0.0f, 0.0f);
 	}
 
 	/* to get appropriate filtering of texture */
 	mask |= PAINT_WINDOW_ON_TRANSFORMED_SCREEN_MASK;
 
-	UNWRAP (ws, w->screen, drawWindowTexture);
+	UNWRAP (fs, w->screen, drawWindowTexture);
 	(*w->screen->drawWindowTexture) (w, texture, &fa, mask);
-	WRAP (ws, w->screen, drawWindowTexture, frostDrawWindowTexture);
+	WRAP (fs, w->screen, drawWindowTexture, frostDrawWindowTexture);
 
 	if (function)
 	{
 	    (*w->screen->activeTexture) (GL_TEXTURE0_ARB + unit);
 	    glDisable (GL_TEXTURE_GEN_T);
 	    glDisable (GL_TEXTURE_GEN_S);
-	    glBindTexture (ws->target, 0);
+	    glBindTexture (fs->target, 0);
 	    (*w->screen->activeTexture) (GL_TEXTURE0_ARB);
 
 	    screenLighting (w->screen, lighting);
@@ -1099,9 +1099,9 @@ frostDrawWindowTexture (CompWindow	     *w,
     }
     else
     {
-	UNWRAP (ws, w->screen, drawWindowTexture);
+	UNWRAP (fs, w->screen, drawWindowTexture);
 	(*w->screen->drawWindowTexture) (w, texture, attrib, mask);
-	WRAP (ws, w->screen, drawWindowTexture, frostDrawWindowTexture);
+	WRAP (fs, w->screen, drawWindowTexture, frostDrawWindowTexture);
     }
 }
 
@@ -1112,13 +1112,13 @@ frostPreparePaintScreen (CompScreen *s,
 {
     FROST_SCREEN (s);
 
-    if (ws->count)
+    if (fs->count)
     {
-	ws->count -= 10;
-	if (ws->count < 0)
-	    ws->count = 0;
+	fs->count -= 10;
+	if (fs->count < 0)
+	    fs->count = 0;
 
-	if (ws->wiperHandle)
+	if (fs->wiperHandle)
 	{
 	    float  step, angle0, angle1;
 	    Bool   wipe = FALSE;
@@ -1127,32 +1127,32 @@ frostPreparePaintScreen (CompScreen *s,
 	    p[1].x = s->width / 2;
 	    p[1].y = s->height;
 
-	    step = ws->wiperSpeed * msSinceLastPaint / 20.0f;
+	    step = fs->wiperSpeed * msSinceLastPaint / 20.0f;
 
-	    if (ws->wiperSpeed > 0.0f)
+	    if (fs->wiperSpeed > 0.0f)
 	    {
-		if (ws->wiperAngle < 180.0f)
+		if (fs->wiperAngle < 180.0f)
 		{
-		    angle0 = ws->wiperAngle;
+		    angle0 = fs->wiperAngle;
 
-		    ws->wiperAngle += step;
-		    ws->wiperAngle = MIN (ws->wiperAngle, 180.0f);
+		    fs->wiperAngle += step;
+		    fs->wiperAngle = MIN (fs->wiperAngle, 180.0f);
 
-		    angle1 = ws->wiperAngle;
+		    angle1 = fs->wiperAngle;
 
 		    wipe = TRUE;
 		}
 	    }
 	    else
 	    {
-		if (ws->wiperAngle > 0.0f)
+		if (fs->wiperAngle > 0.0f)
 		{
-		    angle1 = ws->wiperAngle;
+		    angle1 = fs->wiperAngle;
 
-		    ws->wiperAngle += step;
-		    ws->wiperAngle = MAX (ws->wiperAngle, 0.0f);
+		    fs->wiperAngle += step;
+		    fs->wiperAngle = MAX (fs->wiperAngle, 0.0f);
 
-		    angle0 = ws->wiperAngle;
+		    angle0 = fs->wiperAngle;
 
 		    wipe = TRUE;
 		}
@@ -1196,9 +1196,9 @@ frostPreparePaintScreen (CompScreen *s,
 	frostUpdate (s, 0.8f);
     }
 
-    UNWRAP (ws, s, preparePaintScreen);
+    UNWRAP (fs, s, preparePaintScreen);
     (*s->preparePaintScreen) (s, msSinceLastPaint);
-    WRAP (ws, s, preparePaintScreen, frostPreparePaintScreen);
+    WRAP (fs, s, preparePaintScreen, frostPreparePaintScreen);
 }
 
 static void
@@ -1206,12 +1206,12 @@ frostDonePaintScreen (CompScreen *s)
 {
     FROST_SCREEN (s);
 
-    if (ws->count)
+    if (fs->count)
 	damageScreen (s);
 
-    UNWRAP (ws, s, donePaintScreen);
+    UNWRAP (fs, s, donePaintScreen);
     (*s->donePaintScreen) (s);
-    WRAP (ws, s, donePaintScreen, frostDonePaintScreen);
+    WRAP (fs, s, donePaintScreen, frostDonePaintScreen);
 }
 
 static void
@@ -1225,7 +1225,7 @@ frostHandleMotionEvent (CompDisplay *d,
     {
 	FROST_SCREEN (s);
 
-	if (ws->grabIndex)
+	if (fs->grabIndex)
 	{
 	    XPoint p[2];
 
@@ -1261,8 +1261,8 @@ frostInitiate (CompDisplay     *d,
 	if (otherScreenGrabExist (s, "frost", NULL))
 	    continue;
 
-	if (!ws->grabIndex)
-	    ws->grabIndex = pushScreenGrab (s, None, "frost");
+	if (!fs->grabIndex)
+	    fs->grabIndex = pushScreenGrab (s, None, "frost");
 
 	if (XQueryPointer (d->display, s->root, &root, &child, &xRoot, &yRoot,
 			   &i, &i, &ui))
@@ -1300,10 +1300,10 @@ frostTerminate (CompDisplay	*d,
     {
 	FROST_SCREEN (s);
 
-	if (ws->grabIndex)
+	if (fs->grabIndex)
 	{
-	    removeScreenGrab (s, ws->grabIndex, 0);
-	    ws->grabIndex = 0;
+	    removeScreenGrab (s, fs->grabIndex, 0);
+	    fs->grabIndex = 0;
 	}
     }
 
@@ -1326,18 +1326,18 @@ frostToggleRain (CompDisplay     *d,
     {
 	FROST_SCREEN (s);
 
-	if (!ws->rainHandle)
+	if (!fs->rainHandle)
 	{
 	    int delay;
 
-	    delay = wd->opt[FROST_DISPLAY_OPTION_RAIN_DELAY].value.i;
-	    ws->rainHandle = compAddTimeout (delay, (float) delay * 1.2,
+	    delay = fd->opt[FROST_DISPLAY_OPTION_RAIN_DELAY].value.i;
+	    fs->rainHandle = compAddTimeout (delay, (float) delay * 1.2,
 					     frostRainTimeout, s);
 	}
 	else
 	{
-	    compRemoveTimeout (ws->rainHandle);
-	    ws->rainHandle = 0;
+	    compRemoveTimeout (fs->rainHandle);
+	    fs->rainHandle = 0;
 	}
     }
 
@@ -1358,14 +1358,14 @@ frostToggleWiper (CompDisplay     *d,
     {
 	FROST_SCREEN (s);
 
-	if (!ws->wiperHandle)
+	if (!fs->wiperHandle)
 	{
-	    ws->wiperHandle = compAddTimeout (2000, 2400, frostWiperTimeout, s);
+	    fs->wiperHandle = compAddTimeout (2000, 2400, frostWiperTimeout, s);
 	}
 	else
 	{
-	    compRemoveTimeout (ws->wiperHandle);
-	    ws->wiperHandle = 0;
+	    compRemoveTimeout (fs->wiperHandle);
+	    fs->wiperHandle = 0;
 	}
     }
 
@@ -1485,7 +1485,7 @@ frostHandleEvent (CompDisplay *d,
 	{
 	    FROST_SCREEN (s);
 
-	    if (ws->grabIndex)
+	    if (fs->grabIndex)
 	    {
 		XPoint p;
 
@@ -1507,9 +1507,9 @@ frostHandleEvent (CompDisplay *d,
 	break;
     }
 
-    UNWRAP (wd, d, handleEvent);
+    UNWRAP (fd, d, handleEvent);
     (*d->handleEvent) (d, event);
-    WRAP (wd, d, handleEvent, frostHandleEvent);
+    WRAP (fd, d, handleEvent, frostHandleEvent);
 }
 
 static CompOption *
@@ -1519,8 +1519,8 @@ frostGetDisplayOptions (CompPlugin  *plugin,
 {
     FROST_DISPLAY (display);
 
-    *count = NUM_OPTIONS (wd);
-    return wd->opt;
+    *count = NUM_OPTIONS (fd);
+    return fd->opt;
 }
 
 static Bool
@@ -1534,7 +1534,7 @@ frostSetDisplayOption (CompPlugin      *plugin,
 
     FROST_DISPLAY (display);
 
-    o = compFindOption (wd->opt, NUM_OPTIONS (wd), name, &index);
+    o = compFindOption (fd->opt, NUM_OPTIONS (fd), name, &index);
     if (!o)
 	return FALSE;
 
@@ -1542,7 +1542,7 @@ frostSetDisplayOption (CompPlugin      *plugin,
     case FROST_DISPLAY_OPTION_OFFSET_SCALE:
 	if (compSetFloatOption (o, value))
 	{
-	    wd->offsetScale = o->value.f * 50.0f;
+	    fd->offsetScale = o->value.f * 50.0f;
 	    return TRUE;
 	}
 	break;
@@ -1555,11 +1555,11 @@ frostSetDisplayOption (CompPlugin      *plugin,
 	    {
 		FROST_SCREEN (s);
 
-		if (!ws->rainHandle)
+		if (!fs->rainHandle)
 		    continue;
 
-		compRemoveTimeout (ws->rainHandle);
-		ws->rainHandle = compAddTimeout (value->i,
+		compRemoveTimeout (fs->rainHandle);
+		fs->rainHandle = compAddTimeout (value->i,
 						 (float)value->i * 1.2,
 						 frostRainTimeout, s);
 	    }
@@ -1588,38 +1588,38 @@ static Bool
 frostInitDisplay (CompPlugin  *p,
 		  CompDisplay *d)
 {
-    frostDisplay *wd;
+    frostDisplay *fd;
 
     if (!checkPluginABI ("core", CORE_ABIVERSION))
 	return FALSE;
 
-    wd = malloc (sizeof (frostDisplay));
-    if (!wd)
+    fd = malloc (sizeof (frostDisplay));
+    if (!fd)
 	return FALSE;
 
     if (!compInitDisplayOptionsFromMetadata (d,
 					     &frostMetadata,
 					     frostDisplayOptionInfo,
-					     wd->opt,
+					     fd->opt,
 					     FROST_DISPLAY_OPTION_NUM))
     {
-	free (wd);
+	free (fd);
 	return FALSE;
     }
 
-    wd->screenPrivateIndex = allocateScreenPrivateIndex (d);
-    if (wd->screenPrivateIndex < 0)
+    fd->screenPrivateIndex = allocateScreenPrivateIndex (d);
+    if (fd->screenPrivateIndex < 0)
     {
-	compFiniDisplayOptions (d, wd->opt, FROST_DISPLAY_OPTION_NUM);
-	free (wd);
+	compFiniDisplayOptions (d, fd->opt, FROST_DISPLAY_OPTION_NUM);
+	free (fd);
 	return FALSE;
     }
 
-    wd->offsetScale = wd->opt[FROST_DISPLAY_OPTION_OFFSET_SCALE].value.f * 50.0f;
+    fd->offsetScale = fd->opt[FROST_DISPLAY_OPTION_OFFSET_SCALE].value.f * 50.0f;
 
-    WRAP (wd, d, handleEvent, frostHandleEvent);
+    WRAP (fd, d, handleEvent, frostHandleEvent);
 
-    d->base.privates[displayPrivateIndex].ptr = wd;
+    d->base.privates[displayPrivateIndex].ptr = fd;
 
     return TRUE;
 }
@@ -1630,34 +1630,34 @@ frostFiniDisplay (CompPlugin  *p,
 {
     FROST_DISPLAY (d);
 
-    freeScreenPrivateIndex (d, wd->screenPrivateIndex);
+    freeScreenPrivateIndex (d, fd->screenPrivateIndex);
 
-    UNWRAP (wd, d, handleEvent);
+    UNWRAP (fd, d, handleEvent);
 
-    compFiniDisplayOptions (d, wd->opt, FROST_DISPLAY_OPTION_NUM);
+    compFiniDisplayOptions (d, fd->opt, FROST_DISPLAY_OPTION_NUM);
 
-    free (wd);
+    free (fd);
 }
 
 static Bool
 frostInitScreen (CompPlugin *p,
 		 CompScreen *s)
 {
-    frostScreen *ws;
+    frostScreen *fs;
 
     FROST_DISPLAY (s->display);
 
-    ws = calloc (1, sizeof (frostScreen));
-    if (!ws)
+    fs = calloc (1, sizeof (frostScreen));
+    if (!fs)
 	return FALSE;
 
-    ws->grabIndex = 0;
+    fs->grabIndex = 0;
 
-    WRAP (ws, s, preparePaintScreen, frostPreparePaintScreen);
-    WRAP (ws, s, donePaintScreen, frostDonePaintScreen);
-    WRAP (ws, s, drawWindowTexture, frostDrawWindowTexture);
+    WRAP (fs, s, preparePaintScreen, frostPreparePaintScreen);
+    WRAP (fs, s, donePaintScreen, frostDonePaintScreen);
+    WRAP (fs, s, drawWindowTexture, frostDrawWindowTexture);
 
-    s->base.privates[wd->screenPrivateIndex].ptr = ws;
+    s->base.privates[fd->screenPrivateIndex].ptr = fs;
 
     frostReset (s);
 
@@ -1673,28 +1673,28 @@ frostFiniScreen (CompPlugin *p,
 
     FROST_SCREEN (s);
 
-    if (ws->rainHandle)
-	compRemoveTimeout (ws->rainHandle);
+    if (fs->rainHandle)
+	compRemoveTimeout (fs->rainHandle);
 
-    if (ws->wiperHandle)
-	compRemoveTimeout (ws->wiperHandle);
+    if (fs->wiperHandle)
+	compRemoveTimeout (fs->wiperHandle);
 
-    if (ws->fbo)
-	(*s->deleteFramebuffers) (1, &ws->fbo);
+    if (fs->fbo)
+	(*s->deleteFramebuffers) (1, &fs->fbo);
 
     for (i = 0; i < TEXTURE_NUM; i++)
     {
-	if (ws->texture[i])
-	    glDeleteTextures (1, &ws->texture[i]);
+	if (fs->texture[i])
+	    glDeleteTextures (1, &fs->texture[i]);
     }
 
-    if (ws->program)
-	(*s->deletePrograms) (1, &ws->program);
+    if (fs->program)
+	(*s->deletePrograms) (1, &fs->program);
 
-    if (ws->data)
-	free (ws->data);
+    if (fs->data)
+	free (fs->data);
 
-    function = ws->bumpMapFunctions;
+    function = fs->bumpMapFunctions;
     while (function)
     {
 	destroyFragmentFunction (s, function->handle);
@@ -1704,11 +1704,11 @@ frostFiniScreen (CompPlugin *p,
 	function = next;
     }
 
-    UNWRAP (ws, s, preparePaintScreen);
-    UNWRAP (ws, s, donePaintScreen);
-    UNWRAP (ws, s, drawWindowTexture);
+    UNWRAP (fs, s, preparePaintScreen);
+    UNWRAP (fs, s, donePaintScreen);
+    UNWRAP (fs, s, drawWindowTexture);
 
-    free (ws);
+    free (fs);
 }
 
 static CompBool
